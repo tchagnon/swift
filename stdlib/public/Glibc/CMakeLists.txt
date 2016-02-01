@@ -1,6 +1,7 @@
 set(sources
     Glibc.swift
     Misc.c
+    tgmath.swift.gyb
 )
 
 set(output_dir "${SWIFTLIB_DIR}/glibc")

@@ -153,11 +153,9 @@ public func ${bfunc}(lhs: ${T}, _ rhs: ${T}) -> ${T} {
 
 // Other functions
 
-% # These are AllFloatTypes not OverlayFloatTypes because of the Int return.
-% for T, CT, f in AllFloatTypes():
-%   if f == '':
-%     f = 'd'
-%   end
+% # These would be AllFloatTypes not OverlayFloatTypes because of the Int return.
+% # ... except that Darwin appends 'd' to the double type call
+% for T, CT, f in OverlayFloatTypes():
 @_transparent
 @warn_unused_result
 public func fpclassify(x: ${T}) -> Int {
@@ -165,6 +163,17 @@ public func fpclassify(x: ${T}) -> Int {
 }
 
 % end
+
+% # Double type overlay
+@_transparent
+@warn_unused_result
+public func fpclassify(x: Double) -> Int {
+#if os(Linux)
+  return Int(__fpclassify(CDouble(x)))
+#else
+  return Int(__fpclassifyd(CDouble(x)))
+#endif
+}
 
 % # These are AllFloatTypes not OverlayFloatTypes because we need to cover 
 % # them all because C's declarations are compiler builtins.
@@ -246,6 +255,8 @@ public func ilogb(x: ${T}) -> Int {
 
 % end
 
+% # FIXME @_silgen_name doesn't work on Linux?
+#if !os(Linux)
 @warn_unused_result
 @_silgen_name("ilogb") 
 func _swift_Darwin_ilogb(value: CDouble) -> CInt
@@ -255,6 +266,7 @@ func _swift_Darwin_ilogb(value: CDouble) -> CInt
 public func ilogb(x: Double) -> Int {
   return Int(_swift_Darwin_ilogb(CDouble(x)))
 }
+#endif
 
 
 % # This is AllFloatTypes not OverlayFloatTypes because of the Int parameter.
@@ -270,17 +282,25 @@ public func scalbn(x: ${T}, _ n: Int) -> ${T} {
 % # This is AllFloatTypes not OverlayFloatTypes because of the tuple return.
 % for T, CT, f in AllFloatTypes():
 % # The real lgamma_r is not imported because it hides behind macro _REENTRANT.
+
+#if !os(Linux)
 @warn_unused_result
 @_silgen_name("lgamma${f}_r") 
 func _swift_Darwin_lgamma${f}_r(_: ${CT},
                                 _: UnsafeMutablePointer<CInt>) -> ${CT}
+#endif
+
 @_transparent
 @warn_unused_result
 public func lgamma(x: ${T}) -> (${T}, Int) {
   var sign = CInt(0)
   let value = withUnsafeMutablePointer(&sign) { 
     (signp: UnsafeMutablePointer<CInt>) -> ${CT} in
+    #if os(Linux)
+    return lgamma${f}_r(${CT}(x), signp)
+    #else
     return _swift_Darwin_lgamma${f}_r(${CT}(x), signp)
+    #endif
   }
   return (${T}(value), Int(sign))
 }
